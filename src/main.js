@@ -29,9 +29,17 @@ Vue.prototype.$ajax=(url, obj, callback, bool=false)=>{
 		xhr.onreadystatechange=()=>{
 			if(xhr.readyState===4){
 				callback({
+					error: 0,
 					data: Public.parseJson(xhr.responseText)
 				});
 			}
+		}
+		xhr.onerror=error=>{
+			let str="lengthComputable="+error.lengthComputable+"loaded="+error.loaded+";total="+error.total;
+			callback({
+				error: 1,
+				errorTxt: str
+			});
 		}
 		xhr.open( "GET", str_url );
 		xhr.send();
@@ -39,7 +47,15 @@ Vue.prototype.$ajax=(url, obj, callback, bool=false)=>{
 		axios.get(url, {
 			params: obj
 		}).then(response=>{
+			response.error=0;
 			callback(response);
+		},error=>{
+			console.log(error);
+			callback({
+				error: 1,
+				errorTxt: error.message,
+				obj_error: error
+			});
 		});
 	}
 }

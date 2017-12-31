@@ -1,6 +1,6 @@
 <template>
 <section>
-    <h1 class="title">{{str_title}}</h1>
+    <h1 class="title" @click="asynSohu">{{str_title}}</h1>
     <div class="desc">轻松的{{str_week}}，去一个陌生的小站散散心吧~</div>
     <div class="pic-hscroll-box">
         <div class="pic" v-for="(obj,index) in arr_data" :key="index" :style="{'background-image': 'url('+obj.pic+')'}">
@@ -18,7 +18,7 @@
     <ul class="news-list">
         <li v-for="(obj, index) in arr_weibo" :key="index" v-if="obj.mblog">
             <div class="pic">
-                <img :src="fetchWeiboPic(obj)" alt="">
+                <div class="img" :style="{'background-image': 'url(\''+fetchWeiboPic(obj)+'\')'}" @click="funGallery(obj.mblog)"></div>
                 <div class="time">{{obj.mblog.created_at}}</div>
             </div>
             <div class="head-pic">
@@ -33,12 +33,16 @@
         </li>
     </ul>
     <div class="newslist-more" @click="funNextPage">{{is_load_list?'加载中':'点我加载'}}</div>
+    <VueGallery :images="arr_gallery_imgs" :index="int_gallery_index" @close="int_gallery_index = null" :options="gallery_option"></VueGallery>
 </section>
 </template>
 
 <script>
+import VueGallery from 'vue-gallery';
+import 'blueimp-gallery/js/blueimp-gallery-video.js';
 export default {
     name: 'Main',
+    components: {VueGallery},
     data () {
         let nowdate=new Date(),
             mymonth=nowdate.getMonth()+1,
@@ -54,7 +58,8 @@ export default {
             weiboUid: '2803301701',
             weiboContainerid: '',
             input_search: '',
-            arr_weibo_user: [
+            arr_weibo_user: [],
+            arr_default_user: [
                 {uid: '2803301701', pic: 'http://tva1.sinaimg.cn/crop.0.3.1018.1018.180/a716fd45gw1ev7q2k8japj20sg0sg779.jpg', name: '人民日报'},
                 {uid: '2656274875', pic: 'http://tva2.sinaimg.cn/crop.0.0.512.512.180/9e5389bbjw8eylgqjhrzsj20e80e8jrw.jpg', name: '央视新闻'},
                 {uid: '5806652887', pic: 'http://tvax4.sinaimg.cn/crop.0.71.111.111.180/006kY7FJly8fj1x7iul0jj305k05kq3p.jpg', name: '智慧妈妈'},
@@ -62,19 +67,59 @@ export default {
                 {uid: '1831157632', pic: 'http://tvax1.sinaimg.cn/crop.166.3.333.333.180/6d253f80ly8fdarvbs69jj20go09dmyb.jpg', name: '美剧吧官博'}
             ],
             is_load_list: false,
-            is_load_refresh: false
+            is_load_refresh: false,
+            arr_gallery_imgs: [],
+            int_gallery_index: null,
+            gallery_option: {
+                carousel: false,
+                displayTransition: false,
+                closeOnSlideClick: true
+            }
         }
     },
     methods: {
+        funGallery(data){
+            const obj_mblog=data;
+            let arr_data=[];
+            if(obj_mblog.page_info){
+                let page_info=obj_mblog.page_info;
+                if(page_info.type=='video'){
+                    arr_data.push({
+                        title: page_info.page_title,
+                        href: page_info.media_info.stream_url,
+                        type: 'video/mp4',
+                        poster: page_info.page_pic.url
+                    });
+                }else{
+                    arr_data.push({
+                        title: page_info.page_title,
+                        href: page_info.page_pic.url,
+                        type: 'image/jpeg',
+                        poster: page_info.page_pic.url
+                    });
+                }
+            }
+            if(obj_mblog.pics){
+                for(let i=0; i<obj_mblog.pics.length; i++){
+                    arr_data.push({
+                        title: '',
+                        href: obj_mblog.pics[i].large.url,
+                        type: 'image/jpeg',
+                        thumbnail: obj_mblog.pics[i].url
+                    });
+                }
+            }else if(obj_mblog.retweeted_status){
+                this.funGallery(obj_mblog.retweeted_status);
+                return false;
+            }
+            if(arr_data.length>0){
+                this.arr_gallery_imgs=arr_data;
+                this.int_gallery_index=0;
+            }
+        },
         funDefaultSeach(){
             this.input_search='';
-            this.arr_weibo_user=[
-                {uid: '2803301701', pic: 'http://tva1.sinaimg.cn/crop.0.3.1018.1018.180/a716fd45gw1ev7q2k8japj20sg0sg779.jpg', name: '人民日报'},
-                {uid: '2656274875', pic: 'http://tva2.sinaimg.cn/crop.0.0.512.512.180/9e5389bbjw8eylgqjhrzsj20e80e8jrw.jpg', name: '央视新闻'},
-                {uid: '5806652887', pic: 'http://tvax4.sinaimg.cn/crop.0.71.111.111.180/006kY7FJly8fj1x7iul0jj305k05kq3p.jpg', name: '智慧妈妈'},
-                {uid: '3673109167', pic: 'http://tva1.sinaimg.cn/crop.0.0.2048.2048.180/daef32afjw8eudmtf9wy8j21kw1kwh1j.jpg', name: '海宁天气'},
-                {uid: '1831157632', pic: 'http://tvax1.sinaimg.cn/crop.166.3.333.333.180/6d253f80ly8fdarvbs69jj20go09dmyb.jpg', name: '美剧吧官博'}
-            ];
+            this.arr_weibo_user=this.arr_default_user;
         },
         funNextPage(){
             if(this.is_load_list) return false;
@@ -90,18 +135,22 @@ export default {
                 arr_data=[];
             /* this.$http.get(`http://s.weibo.com/user/${str_search}`).then(response=>{ */
             this.$ajax(`http://s.weibo.com/user/${str_search}`, {}, response=>{
+                if(response.error){
+                    alert(response.errorTxt);
+                    return false;
+                }
                 const str_html=response.data;
                 let _document=this.$_glo.parseDom(str_html,true),
                     _list=_document.querySelectorAll('.item_con');
-                _list.forEach(obj=>{
-                    let str_link=this.$_glo.getDomText('.star_pic a::href',obj).text(),
+                for(let i=0; i<_list.length; i++){
+                    let str_link=this.$_glo.getDomText('.star_pic a::href',_list[i]).text(),
                         arr_link=str_link.split('/');
                     arr_data.push({
                         uid: arr_link[arr_link.length-1],
-                        pic: this.$_glo.getDomText('.star_pic img::src',obj).text(),
-                        name: this.$_glo.getDomText('.s_name',obj).text()
+                        pic: this.$_glo.getDomText('.star_pic img::src',_list[i]).text(),
+                        name: this.$_glo.getDomText('.s_name',_list[i]).text()
                     });
-                });
+                }
                 this.arr_weibo_user=arr_data;
             });
         },
@@ -149,6 +198,10 @@ export default {
                     this.$ajax('https://m.weibo.cn/statuses/extend', {
                         id: str_id
                     }, response=>{
+                        if(response.error){
+                            alert(response.errorTxt);
+                            return false;
+                        }
                         const obj_data=response.data;
                         let str_longtext=obj_data.data.longTextContent;
                         if(isRetweeted){
@@ -168,10 +221,10 @@ export default {
                 str_pic='';
             if(obj_data.mblog.page_info){
                 str_pic=obj_data.mblog.page_info.page_pic.url;
-            }else if(obj_data.mblog.thumbnail_pic){
+            }else if(obj_data.mblog.original_pic){
                 str_pic=obj_data.mblog.thumbnail_pic;
             }else if(obj_data.mblog.retweeted_status){
-                str_pic=obj_data.mblog.retweeted_status.thumbnail_pic?obj_data.mblog.retweeted_status.thumbnail_pic:obj_data.mblog.user.cover_image_phone;
+                str_pic=obj_data.mblog.retweeted_status.original_pic?obj_data.mblog.retweeted_status.original_pic:obj_data.mblog.user.cover_image_phone;
             }else{
                 str_pic=obj_data.mblog.user.cover_image_phone;
             }
@@ -185,6 +238,10 @@ export default {
                     params: objpost
                 }).then(response=>{ */
                 this.$ajax('https://m.weibo.cn/api/container/getIndex', objpost, response=>{
+                    if(response.error){
+                        alert(response.errorTxt);
+                        return false;
+                    }
                     if(bool){
                         callback(response);
                     }else{
@@ -220,17 +277,20 @@ export default {
                 },
             }).then(response=>{ */
             this.$ajax('http://news.sohu.com/', {}, response=>{
+                if(response.error){
+                    alert(response.errorTxt);
+                    return false;
+                }
                 const str_data=response.data;
                 let _document=this.$_glo.parseDom(str_data,true),
                     _li=_document.querySelectorAll('.mp-focus-content .swiper-slide');
-                //console.log(str_data);
                 let arr_data=[];
-                _li.forEach(obj=>{
+                for(let i=0; i<_li.length; i++){
                     arr_data.push({
-                        title: this.$_glo.getDomText('.focus-item__info__text',obj).text(),
-                        pic: this.$_glo.getDomText('img::src',obj).text('https://wx3.sinaimg.cn/crop.125.0.749.562.240/8a533d85ly1fmpemfkzq2j20rs0fm77p.jpg')
+                        title: this.$_glo.getDomText('.focus-item__info__text',_li[i]).text(),
+                        pic: this.$_glo.getDomText('img::src',_li[i]).text('https://wx3.sinaimg.cn/crop.125.0.749.562.240/8a533d85ly1fmpemfkzq2j20rs0fm77p.jpg')
                     });
-                });
+                }
                 //console.log(arr_data);
                 this.arr_data=arr_data;
             });
@@ -240,7 +300,9 @@ export default {
             this.is_load_refresh=true;
             this.asynWeibo(this.weiboUid, 1, response=>{
                 this.arr_weibo=response.data.data.cards;
-                this.obj_page=response.data.data.cardlistInfo;
+                if(this.arr_weibo.length){
+                    this.obj_page=response.data.data.cardlistInfo;
+                }
                 this.is_load_refresh=false;
             });
         },
@@ -265,6 +327,7 @@ export default {
         }
     },
     mounted(){
+        this.arr_weibo_user=this.arr_default_user;
         if(window.plus){
             plusReady();
         }else{
@@ -317,6 +380,7 @@ export default {
                 padding: 0 10px 10px;
                 box-shadow: inset 0 -30px 30px 0 rgba(0,0,0,0.4);
                 white-space: normal;
+                border-radius: 0 0 10px 10px;
             }
         }
     }
@@ -354,9 +418,13 @@ export default {
                 float: right;
                 width: 90px;
                 margin-right: -100px;
-                img{
+                .img{
                     .size(85px, 85px);
                     border-radius: 5px;
+                    overflow: hidden;
+                    background-position: center center;
+                    background-repeat: no-repeat;
+                    background-size: cover;
                 }
                 .time{
                     font-size: 12px;
