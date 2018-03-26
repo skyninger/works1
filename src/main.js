@@ -12,6 +12,9 @@ Vue.prototype.$_glo=Public
 import axios from 'axios'
 Vue.prototype.$http=axios
 
+import gallery from 'img-vuer'
+Vue.use(gallery)
+
 Vue.prototype.$ajax=(url, obj, callback, bool=false)=>{
 	if(bool){
 		axios.get('/curl/index.php', {

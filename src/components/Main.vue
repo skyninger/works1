@@ -18,7 +18,10 @@
     <ul class="news-list">
         <li v-for="(obj, index) in arr_weibo" :key="index" v-if="obj.mblog">
             <div class="pic">
-                <div class="img" :style="{'background-image': 'url(\''+fetchWeiboPic(obj)+'\')'}" @click="funGallery(obj.mblog)"></div>
+                <div class="img" :style="{'background-image': 'url(\''+fetchWeiboPic(obj)+'\')'}" @click="funGallery(obj.mblog)" v-if="isWeiboVideo(obj.mblog)"></div>
+                <div class="img-group" v-else>
+                    <img v-gallery:groupName v-for="(img, i) in fetchWeiboPic(obj, 'all')" :src="img" :key="i" :style="{zIndex: 100-i}">
+                </div>
                 <div class="time">{{obj.mblog.created_at}}</div>
             </div>
             <div class="head-pic">
@@ -73,14 +76,30 @@ export default {
             gallery_option: {
                 carousel: false,
                 displayTransition: false,
-                closeOnSlideClick: true
+                closeOnSlideClick: true,
+                closeOnSwipeUpOrDown: true
             }
         }
     },
     methods: {
-        funGallery(data){
+        isWeiboVideo (data) {
+            const obj_mblog=data;
+            let bool=false;
+            if(obj_mblog.page_info){
+                let page_info=obj_mblog.page_info;
+                if(page_info.type=='video'){
+                    bool=true;
+                }
+            }
+            if(obj_mblog.retweeted_status){
+                return this.isWeiboVideo(obj_mblog.retweeted_status);
+            }
+            return bool;
+        },
+        funGallery(data, how=''){
             const obj_mblog=data;
             let arr_data=[];
+            let arr_imgs=[];
             if(obj_mblog.page_info){
                 let page_info=obj_mblog.page_info;
                 if(page_info.type=='video'){
@@ -97,6 +116,7 @@ export default {
                         type: 'image/jpeg',
                         poster: page_info.page_pic.url
                     });
+                    arr_imgs.push(page_info.page_pic.url);
                 }
             }
             if(obj_mblog.pics){
@@ -107,14 +127,19 @@ export default {
                         type: 'image/jpeg',
                         thumbnail: obj_mblog.pics[i].url
                     });
+                    arr_imgs.push(obj_mblog.pics[i].large.url);
                 }
             }else if(obj_mblog.retweeted_status){
-                this.funGallery(obj_mblog.retweeted_status);
-                return false;
+                let arr_imgs_tmp = this.funGallery(obj_mblog.retweeted_status, how);
+                return how==='all' ? arr_imgs_tmp : false;
             }
-            if(arr_data.length>0){
-                this.arr_gallery_imgs=arr_data;
-                this.int_gallery_index=0;
+            if(how==='all'){
+                return arr_imgs;
+            }else{
+                if(arr_data.length>0){
+                    this.arr_gallery_imgs=arr_data;
+                    this.int_gallery_index=0;
+                }
             }
         },
         funDefaultSeach(){
@@ -136,7 +161,7 @@ export default {
             /* this.$http.get(`http://s.weibo.com/user/${str_search}`).then(response=>{ */
             this.$ajax(`http://s.weibo.com/user/${str_search}`, {}, response=>{
                 if(response.error){
-                    alert(response.errorTxt);
+                    //alert(response.errorTxt);
                     return false;
                 }
                 const str_html=response.data;
@@ -199,7 +224,7 @@ export default {
                         id: str_id
                     }, response=>{
                         if(response.error){
-                            alert(response.errorTxt);
+                            //alert(response.errorTxt);
                             return false;
                         }
                         const obj_data=response.data;
@@ -216,19 +241,23 @@ export default {
                 }
             }
         },
-        fetchWeiboPic(data){
+        fetchWeiboPic(data, how=""){
             let obj_data=data,
                 str_pic='';
-            if(obj_data.mblog.page_info){
-                str_pic=obj_data.mblog.page_info.page_pic.url;
-            }else if(obj_data.mblog.original_pic){
-                str_pic=obj_data.mblog.thumbnail_pic;
-            }else if(obj_data.mblog.retweeted_status){
-                str_pic=obj_data.mblog.retweeted_status.original_pic?obj_data.mblog.retweeted_status.original_pic:obj_data.mblog.user.cover_image_phone;
+            if(how === 'all'){
+                return this.funGallery(data.mblog, 'all');
             }else{
-                str_pic=obj_data.mblog.user.cover_image_phone;
+                if(obj_data.mblog.page_info){
+                    str_pic=obj_data.mblog.page_info.page_pic.url;
+                }else if(obj_data.mblog.original_pic){
+                    str_pic=obj_data.mblog.thumbnail_pic;
+                }else if(obj_data.mblog.retweeted_status){
+                    str_pic=obj_data.mblog.retweeted_status.original_pic?obj_data.mblog.retweeted_status.original_pic:obj_data.mblog.user.cover_image_phone;
+                }else{
+                    str_pic=obj_data.mblog.user.cover_image_phone;
+                }
+                return str_pic;
             }
-            return str_pic;
         },
         asynWeibo(uid, page, callback){
             let str_uid=uid,
@@ -239,7 +268,7 @@ export default {
                 }).then(response=>{ */
                 this.$ajax('https://m.weibo.cn/api/container/getIndex', objpost, response=>{
                     if(response.error){
-                        alert(response.errorTxt);
+                        //alert(response.errorTxt);
                         return false;
                     }
                     if(bool){
@@ -278,7 +307,7 @@ export default {
             }).then(response=>{ */
             this.$ajax('http://news.sohu.com/', {}, response=>{
                 if(response.error){
-                    alert(response.errorTxt);
+                    //alert(response.errorTxt);
                     return false;
                 }
                 const str_data=response.data;
@@ -431,6 +460,18 @@ export default {
                     color: @color-gray;
                     .text-right;
                     margin: 8px 0 0;
+                }
+                .img-group{
+                    position: relative;
+                    .size(85px, 85px);
+                    overflow: hidden;
+                    border-radius: 5px;
+                    img{
+                        position: absolute;
+                        top: 0;
+                        left: 0;
+                        .size(100%, 100%);
+                    }
                 }
             }
             .head-pic{
